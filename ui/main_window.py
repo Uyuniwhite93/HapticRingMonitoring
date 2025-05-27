@@ -794,7 +794,7 @@ class HapticMonitor(QMainWindow):
         
     def onDataProcessed(self, current_speed, avg_speed):
         # 속도 제한 적용
-        max_speed = 2000
+        max_speed = 3000
         current_speed = min(current_speed, max_speed)
         
         # 노이즈 필터링
