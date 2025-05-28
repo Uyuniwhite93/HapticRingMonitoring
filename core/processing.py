@@ -6,7 +6,7 @@ from PyQt6.QtCore import Qt, QPointF, QTimer, QRectF, QThread, pyqtSignal, QMarg
 
 # 일정 길이의 이동 평균 계산 클래스 (e.g. 속도 평균화)
 class MovingAverage:
-    def __init__(self, window_size=15):
+    def __init__(self, window_size=5):
         self.window_size = window_size
         self.values = deque(maxlen=window_size)
         self.sum = 0.0
