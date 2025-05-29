@@ -57,48 +57,61 @@ class TestWindow(QMainWindow):
         self.setGeometry(50,50,1200,1200)
 
         self.config = {
-            'neuron_dt_ms': 1.0,
-            'plot_hist_sz': 500,
-            'sa_neuron': {
-                'a': 0.02, 'b': 0.2, 'c': -65.0, 'd': 8.0, 'v_init': -70.0,
-                'init_a': 0.02, # 장기 적응용 초기 a값
+            'neuron_dt_ms': 1.0, # 뉴런 시뮬레이션 시간 스텝 (ms)
+            'plot_hist_sz': 500, # 그래프에 표시할 시간 히스토리 크기 (스텝 수)
+            'sa_neuron': { # SA 뉴런 파라미터
+                'a': 0.02, # 회복 변수 u의 시간 스케일 (작을수록 느린 회복/적응)
+                'b': 0.2,  # 회복 변수 u가 막 전위 v에 미치는 영향 (클수록 v에 강하게 연결)
+                'c': -65.0,# 발화 후 막 전위 재설정 값 (mV)
+                'd': 8.0,  # 발화 후 회복 변수 u 재설정 증가 값 (클수록 적응 심화)
+                'v_init': -70.0, # 초기 막 전위 (mV)
+                'init_a': 0.02, # 장기 적응을 위한 초기 a값 (현재 코드에서 사용되지 않을 수 있음)
             },
-            'ra_neuron': {
-                'base_a': 0.1, 'base_b': 0.2, 'base_c': -65.0, 'base_d': 2.0, 'v_init': -70.0,
-                'click_d_burst': 10.0,
+            'ra_neuron': { # RA 뉴런 파라미터 (기본)
+                'base_a': 0.1, # RA 뉴런의 기본 a값 (SA보다 빠름)
+                'base_b': 0.2, # RA 뉴런의 기본 b값
+                'base_c': -65.0, # RA 뉴런 발화 후 c값
+                'base_d': 2.0,  # RA 뉴런 기본 d값 (SA보다 적응 덜 심함)
+                'v_init': -65.0, # RA 뉴런 초기 v값 (mV)
+                'click_d_burst': 20.0, # 클릭/해제 시 RA d값 증가량 (순간적 발화 유도)
             },
-            'input_current': {
-                'click_mag': 12.0,
-                'ra_scl_chg': 20.0,
-                'ra_scl_spd_dev': 0.02,
-                'ra_clip_min': -30.0,
-                'ra_clip_max': 30.0,
-                'RA_SUSTAIN_DURATION': 5,
-                'ra_min_spd_for_input': 1.0,
+            'input_current': { # 입력 전류 설정
+                'click_mag': 12.0, # 마우스 클릭/홀드 시 SA 뉴런에 가해지는 입력 전류 크기
+                'ra_scl_chg': 20.0, # 마우스 속도 변화가 RA 입력에 미치는 배율
+                'ra_scl_spd_dev': 0.02, # 평균 속도 편차가 RA 입력에 미치는 배율 (현재 코드에서 직접 사용되지 않을 수 있음)
+                'ra_clip_min': -30.0, # RA 입력 전류 최소 클리핑 값
+                'ra_clip_max': 30.0,  # RA 입력 전류 최대 클리핑 값
+                'RA_SUSTAIN_DURATION': 5, # RA 지속 입력 스텝 수 (현재 코드에서 사용되지 않음)
+                'ra_min_spd_for_input': 1.0, # RA 입력이 활성화되는 최소 속도 (현재 코드에서 사용되지 않음)
             },
-            'sound': {
-                'sa_hz': 120, 'sa_ms': 120, 'sa_amp': 0.15,
-                'sa_sound_volume': 1.0, # SA 사운드 기본 볼륨 추가
-                'ra_base_hz': 100, 'ra_ms': 60, 'ra_base_amp': 0.6,
-                'ra_vol_min_spd': 100.0, 'ra_vol_max_spd': 1500.0,
-                'ra_min_vol_scl': 0.6,
-                'ra_max_vol_scl': 1.0,
+            'sound': { # 사운드 설정
+                'sa_hz': 50, # SA 사운드 주파수 (Hz)
+                'sa_ms': 120, # SA 사운드 길이 (ms)
+                'sa_amp': 0.15, # SA 사운드 기본 진폭
+                'sa_sound_volume': 1.0, # SA 사운드 재생 볼륨 (0.0 ~ 1.0)
+                'ra_base_hz': 80, # RA 사운드 기본 주파수 (Hz) - 재질에 따라 스케일됨
+                'ra_ms': 100,  # RA 사운드 길이 (ms)
+                'ra_base_amp': 0.6, # RA 사운드 기본 진폭 - 속도에 따라 스케일됨
+                'ra_vol_min_spd': 100.0, # RA 볼륨 조절 최소 속도 임계값
+                'ra_vol_max_spd': 5000.0,# RA 볼륨 조절 최대 속도
+                'ra_min_vol_scl': 0.6, # RA 최소 볼륨 스케일 (최소 속도 이하)
+                'ra_max_vol_scl': 1, # RA 최대 볼륨 스케일 (최대 속도 이상)
             },
-            'mouse': {
-                'max_spd_clamp': 100000.0,
-                'm_stop_thresh': 0.05,
+            'mouse': { # 마우스 입력 설정
+                'max_spd_clamp': 100000.0, # 계산된 속도의 최대값 제한
+                'm_stop_thresh': 0.05, # 마우스 정지 판단 시간 임계값 (s)
             },
-            'plot': {
-                'update_interval': 5,
+            'plot': { # 그래프 설정
+                'update_interval': 5, # 그래프 업데이트 주기 (스텝 수)
             },
-            'materials': {
-                'S': {'r': 0.3, 'f': 1.0},
-                'M': {'r': 0.7, 'f': 1.1},
-                'R': {'r': 1.2, 'f': 1.2}
+            'materials': { # 재질 설정 (거칠기 및 주파수 배율)
+                'S': {'r': 0.3, 'f': 1.0}, # Smooth (부드러움): 거칠기 0.3, 주파수 배율 1.0
+                'M': {'r': 0.7, 'f': 1.1}, # Medium (중간): 거칠기 0.7, 주파수 배율 1.1
+                'R': {'r': 1.2, 'f': 1.2}  # Rough (거침): 거칠기 1.2, 주파수 배율 1.2
             }
         }
         
-        self.neuron_dt_ms = self.config['neuron_dt_ms'] # 타이머 등에서 직접 사용
+        self.neuron_dt_ms = self.config['neuron_dt_ms'] # 타이머 등에서 직접 사용 (밀리초 단위)
 
         main_w=QWidget(); layout=QVBoxLayout(main_w)
         # main_w 배경색 설정 (스페이스그레이/실버 느낌)
@@ -106,9 +119,13 @@ class TestWindow(QMainWindow):
         
         self.info_lbl=QLabel("Click/SA, Move/RA (1-3 Mat)",self) # 축약된 라벨
         fnt=self.info_lbl.font();fnt.setPointSize(16);self.info_lbl.setFont(fnt)
+        # 라벨 중앙 정렬
+        self.info_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.info_lbl)
         self.stat_lbl=QLabel("Mat:S(R:0.3)|Spd:0",self) # 축약된 상태 라벨
         fnt=self.stat_lbl.font();fnt.setPointSize(14);self.stat_lbl.setFont(fnt)
+        # 라벨 중앙 정렬
+        self.stat_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.stat_lbl)
 
         self.plot_hist_sz=self.config['plot_hist_sz']
@@ -128,14 +145,42 @@ class TestWindow(QMainWindow):
         self.fig=Figure(figsize=(7,5)); self.ax_sa,self.ax_ra=self.fig.subplots(2,1)
         self.sa_v_line,=self.ax_sa.plot(self.x_data,list(self.sa_v_hist),lw=1.8,label='SA_v', color='#007aff') # iOS Blue
         self.sa_u_line,=self.ax_sa.plot(self.x_data,list(self.sa_u_hist),lw=1.8,label='SA_u', color='#ff9500') # iOS Orange
-        self.ax_sa.set_title('SA Neuron');self.ax_sa.set_ylabel('V,U');self.ax_sa.set_ylim(-90,40)
+        self.ax_sa.set_title('SA Neuron');
+
+        # SA 그래프 y축 라벨을 'V (mV), U'로 변경 및 글자 크기 설정
+        self.ax_sa.set_ylabel('V (mV), U', fontsize=12) # V는 mV, U는 단위 없음
+        self.ax_sa.set_ylim(-90,40)
+
         self.ax_sa.set_xlim(0,self.plot_hist_sz-1);self.ax_sa.legend(loc='upper right', frameon=False);self.ax_sa.grid(True)
         self.ax_sa.spines['top'].set_visible(False); self.ax_sa.spines['right'].set_visible(False)
 
+        # x축 눈금 위치 (원본 0-499 범위에 해당) 및 라벨 설정 (2500-0)
+        tick_locs = np.linspace(0, self.plot_hist_sz - 1, 6) # 6개 눈금 위치 (0, 100, 200, 300, 400, 499)
+        tick_labels = np.linspace(2500, 0, 6).astype(int) # 6개 라벨 (2500, 2000, 1500, 1000, 500, 0)
+
+        self.ax_sa.set_xticks(tick_locs)
+        self.ax_sa.set_xticklabels(tick_labels) # SA 그래프에도 동일한 눈금 라벨 적용
+
         self.ra_v_line,=self.ax_ra.plot(self.x_data,list(self.ra_v_hist),lw=1.8,label='RA_v', color='#007aff')
         self.ra_u_line,=self.ax_ra.plot(self.x_data,list(self.ra_u_hist),lw=1.8,label='RA_u', color='#ff9500')
-        self.ax_ra.set_title('RA Neuron');self.ax_ra.set_ylabel('V,U');self.ax_ra.set_ylim(-90,40)
-        self.ax_ra.set_xlabel(f'Time (last {self.plot_hist_sz*self.neuron_dt_ms:.0f} ms)')
+        self.ax_ra.set_title('RA Neuron');
+
+        # RA 그래프 y축 라벨을 'V (mV), U'로 변경 및 글자 크기 설정
+        self.ax_ra.set_ylabel('V (mV), U', fontsize=12) # V는 mV, U는 단위 없음
+        self.ax_ra.set_ylim(-90,40)
+
+        # x축 라벨 및 글자 크기 설정
+        self.ax_ra.set_xlabel('Time (ms)', fontsize=12) # 라벨을 Time (ms)으로 변경 및 글자 크기 키우기
+
+        # x축 눈금 위치 (원본 0-499 범위에 해당) 및 라벨 설정 (2500-0)
+        tick_locs = np.linspace(0, self.plot_hist_sz - 1, 6) # 6개 눈금 위치 (0, 100, 200, 300, 400, 499)
+        tick_labels = np.linspace(2500, 0, 6).astype(int) # 6개 라벨 (2500, 2000, 1500, 1000, 500, 0)
+
+        self.ax_sa.set_xticks(tick_locs)
+        self.ax_sa.set_xticklabels(tick_labels) # SA 그래프에도 동일한 눈금 라벨 적용
+        self.ax_ra.set_xticks(tick_locs)
+        self.ax_ra.set_xticklabels(tick_labels)
+
         self.ax_ra.set_xlim(0,self.plot_hist_sz-1);self.ax_ra.legend(loc='upper right', frameon=False);self.ax_ra.grid(True)
         self.ax_ra.spines['top'].set_visible(False); self.ax_ra.spines['right'].set_visible(False)
 
@@ -199,8 +244,8 @@ class TestWindow(QMainWindow):
         self.spd_hist=deque(maxlen=10);self.avg_m_spd=0.0
 
         self.plot_upd_cnt=0
-        # 그래프 업데이트 주기를 1 스텝으로 변경 (매 스텝 업데이트)
-        self.plot_upd_interval=1 #self.config['plot']['update_interval']
+        # 그래프 업데이트 주기를 1 스텝으로 변경 (매 스텝 업데이트) -> 원래대로 (5 스텝) 복구
+        self.plot_upd_interval=self.config['plot']['update_interval'] #1 #self.config['plot']['update_interval']
         self.sa_spike_idxs=deque(maxlen=self.plot_hist_sz)
         self.ra_spike_idxs=deque(maxlen=self.plot_hist_sz)
         self.drawn_spike_lines=[]
@@ -229,21 +274,18 @@ class TestWindow(QMainWindow):
             self.mat_roughness=self.materials[self.curr_mat_key]['r']; self._update_ra_sound()
         else: super().keyPressEvent(e)
 
-    def update_stat_lbl(self): # update_status_label -> update_stat_lbl
+    def update_stat_lbl(self): # 상태 라벨 업데이트
         self.stat_lbl.setText(f"Mat:{self.curr_mat_key}(R:{self.mat_roughness:.1f})|Spd:{self.m_spd:.0f}")
 
     def mousePressEvent(self,e:QPointF):
         self.m_pressed=True
-        # self.input_mag=self.click_mag -> SpikeEncoder로 전달
         self.spike_encoder.update_sa_input(self.config['input_current']['click_mag'])
         p=e.position() if hasattr(e,'position') else QPointF(e.x(),e.y())
         self.last_m_pos=p; self.last_m_t=time.perf_counter(); self.m_spd=0.0; self.spd_hist.clear(); self.avg_m_spd=0.0
-        # self.sa_neuron.a=self.sa_init_a -> SpikeEncoder 내부 처리 (update_sa_input에서)
         self.update_stat_lbl()
 
     def mouseReleaseEvent(self,e:QPointF):
         self.m_pressed=False
-        # self.input_mag=0.0 -> SpikeEncoder로 전달
         self.spike_encoder.update_sa_input(0.0)
         self.m_spd=0.0; self.update_stat_lbl()
 
@@ -289,8 +331,8 @@ class TestWindow(QMainWindow):
         self.last_neuron_update_time = current_time
 
         # 마우스 정지 시 속도 0으로 (UI 업데이트용)
-        if (time.perf_counter()-self.last_m_t)>self.config['mouse']['m_stop_thresh'] and self.m_pressed: 
-            self.m_spd=0.0; 
+        if (time.perf_counter()-self.last_m_t)>self.config['mouse']['m_stop_thresh'] and self.m_pressed:
+            self.m_spd=0.0;
             self.update_stat_lbl()
         
         # SpikeEncoder를 사용하여 스파이크 및 뉴런 상태 업데이트
@@ -324,11 +366,12 @@ class TestWindow(QMainWindow):
                     if den>0: vol_scl=snd_cfg['ra_min_vol_scl']+((s-snd_cfg['ra_vol_min_spd'])/den)*(snd_cfg['ra_max_vol_scl']-snd_cfg['ra_min_vol_scl'])
                 self.audio_player.play_sound(self.ra_snd, channel_id=1, volume=np.clip(vol_scl,0.0,1.0))
 
-        # 그래프 업데이트 주기 관리 -> 매 스텝 업데이트로 변경
-        # self.plot_upd_cnt+=1
-        # if self.plot_upd_cnt>=self.plot_upd_interval:
-        self.update_plots()
-        # self.plot_upd_cnt=0
+        # 그래프 업데이트 주기 관리 -> 매 스텝 업데이트로 변경 -> 원래대로 복구
+        self.plot_upd_cnt+=1
+        if self.plot_upd_cnt>=self.plot_upd_interval:
+        # self.update_plots()
+            self.update_plots()
+            self.plot_upd_cnt=0
 
     def closeEvent(self,e): 
         # pygame.mixer.quit() -> AudioPlayer가 처리
