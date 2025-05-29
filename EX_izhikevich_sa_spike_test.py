@@ -54,8 +54,7 @@ class TestWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Izhikevich Haptic Test") # 간결한 제목
-        # 창 크기 16:10 비율로 조정 (예: 1200x750)
-        self.setGeometry(50, 50, 1200, 750)
+        self.setGeometry(50,50,1200,1200)
 
         self.config = {
             'neuron_dt_ms': 1.0,
@@ -80,7 +79,7 @@ class TestWindow(QMainWindow):
             'sound': {
                 'sa_hz': 120, 'sa_ms': 120, 'sa_amp': 0.15,
                 'sa_sound_volume': 1.0, # SA 사운드 기본 볼륨 추가
-                'ra_base_hz': 150, 'ra_ms': 60, 'ra_base_amp': 0.4,
+                'ra_base_hz': 100, 'ra_ms': 60, 'ra_base_amp': 0.6,
                 'ra_vol_min_spd': 100.0, 'ra_vol_max_spd': 1500.0,
                 'ra_min_vol_scl': 0.6,
                 'ra_max_vol_scl': 1.0,
@@ -102,6 +101,9 @@ class TestWindow(QMainWindow):
         self.neuron_dt_ms = self.config['neuron_dt_ms'] # 타이머 등에서 직접 사용
 
         main_w=QWidget(); layout=QVBoxLayout(main_w)
+        # main_w 배경색 설정 (스페이스그레이/실버 느낌)
+        main_w.setStyleSheet("background-color: #48484a;") # 어두운 회색 (스페이스그레이 느낌)
+        
         self.info_lbl=QLabel("Click/SA, Move/RA (1-3 Mat)",self) # 축약된 라벨
         fnt=self.info_lbl.font();fnt.setPointSize(16);self.info_lbl.setFont(fnt)
         layout.addWidget(self.info_lbl)
@@ -152,18 +154,6 @@ class TestWindow(QMainWindow):
             input_config=self.config['input_current']
         )
 
-        # 입력 관련 변수 초기화 (config 근처로 이동)
-        curr_cfg = self.config['input_current']
-        self.input_mag=0.0;self.prev_input_mag=0.0
-        self.click_mag=curr_cfg['click_mag']
-        self.ra_scl_chg=curr_cfg['ra_scl_chg']
-        self.ra_scl_spd_dev=curr_cfg['ra_scl_spd_dev']
-        self.ra_clip_min=curr_cfg['ra_clip_min']
-        self.ra_clip_max=curr_cfg['ra_clip_max']
-        self.RA_SUSTAIN_DURATION = curr_cfg['RA_SUSTAIN_DURATION']
-        self.ra_sustained_click_input = 0.0
-        self.ra_sustain_counter = 0
-
         snd_cfg = self.config['sound']
         # fade_out_ms 계산: 기존 로직은 sr * 0.01 (시간). ms 단위로 변환하면 snd_cfg['sa_ms'] * 0.01 아님. 샘플 수 기준.
         # self.haptic_renderer.sample_rate * 0.01 로 fade_out_samples를 계산했었음. 이를 ms로 바꾸려면 ( (sr*0.01) / sr ) * 1000 = 10ms
@@ -189,6 +179,18 @@ class TestWindow(QMainWindow):
         self.ra_click_d_burst = ra_cfg['click_d_burst'] # for dynamic change
         self.ra_neuron=IzhikevichNeuron(ra_cfg['base_a'], ra_cfg['base_b'], ra_cfg['base_c'], ra_cfg['base_d'], v_init=ra_cfg['v_init'])
 
+        curr_cfg = self.config['input_current']
+        self.input_mag=0.0;self.prev_input_mag=0.0
+        self.click_mag=curr_cfg['click_mag']
+        self.ra_scl_chg=curr_cfg['ra_scl_chg']
+        self.ra_scl_spd_dev=curr_cfg['ra_scl_spd_dev'] 
+        self.ra_clip_min=curr_cfg['ra_clip_min']
+        self.ra_clip_max=curr_cfg['ra_clip_max']
+
+        self.RA_SUSTAIN_DURATION = curr_cfg['RA_SUSTAIN_DURATION']
+        self.ra_sustained_click_input = 0.0
+        self.ra_sustain_counter = 0
+
         self.m_pressed=False;self.last_m_pos=QPointF(0,0)
         self.last_m_t=time.perf_counter();self.m_spd=0.0
         mouse_cfg = self.config['mouse']
@@ -197,17 +199,21 @@ class TestWindow(QMainWindow):
         self.spd_hist=deque(maxlen=10);self.avg_m_spd=0.0
 
         self.plot_upd_cnt=0
-        self.plot_upd_interval=self.config['plot']['update_interval']
-        self.sa_spike_idxs=deque(maxlen=20)
-        self.ra_spike_idxs=deque(maxlen=20) 
+        # 그래프 업데이트 주기를 1 스텝으로 변경 (매 스텝 업데이트)
+        self.plot_upd_interval=1 #self.config['plot']['update_interval']
+        self.sa_spike_idxs=deque(maxlen=self.plot_hist_sz)
+        self.ra_spike_idxs=deque(maxlen=self.plot_hist_sz)
         self.drawn_spike_lines=[]
 
         self.materials = self.config['materials']
         self.mat_keys=list(self.materials.keys())
         self.curr_mat_key=self.mat_keys[0] 
         self.mat_roughness=self.materials[self.curr_mat_key]['r']
-        self._update_ra_sound(); self.update_stat_lbl() # update_status_label -> update_stat_lbl
+        self._update_ra_sound(); self.update_stat_lbl()
         self.timer=QTimer(self);self.timer.timeout.connect(self.update_neuron);self.timer.start(int(self.neuron_dt_ms))
+
+        # update_neuron 호출 간격 측정을 위한 변수 초기화
+        self.last_neuron_update_time = time.perf_counter()
 
     def _update_ra_sound(self): 
         mat_props=self.materials[self.curr_mat_key]
@@ -276,6 +282,12 @@ class TestWindow(QMainWindow):
         self.plot_canvas.draw()
 
     def update_neuron(self):
+        # 실제 호출 간격 측정 및 출력
+        current_time = time.perf_counter()
+        elapsed_time = (current_time - self.last_neuron_update_time) * 1000 # 밀리초 단위
+        # print(f"Neuron update interval: {elapsed_time:.2f} ms") # 필요시 주석 해제하여 확인
+        self.last_neuron_update_time = current_time
+
         # 마우스 정지 시 속도 0으로 (UI 업데이트용)
         if (time.perf_counter()-self.last_m_t)>self.config['mouse']['m_stop_thresh'] and self.m_pressed: 
             self.m_spd=0.0; 
@@ -294,7 +306,7 @@ class TestWindow(QMainWindow):
         self.ra_v_hist.append(ra_vu[0]); self.ra_u_hist.append(ra_vu[1])
 
         if sa_f: 
-            print("SA Spike!") 
+            # print("SA Spike!") 
             self.sa_spike_idxs.append(self.plot_hist_sz-1)
             self.audio_player.play_sound(self.sa_snd, channel_id=0, volume=self.config['sound'].get('sa_sound_volume', 1.0))
             # SA 뉴런 적응은 SpikeEncoder 내부에서 처리
@@ -312,15 +324,15 @@ class TestWindow(QMainWindow):
                     if den>0: vol_scl=snd_cfg['ra_min_vol_scl']+((s-snd_cfg['ra_vol_min_spd'])/den)*(snd_cfg['ra_max_vol_scl']-snd_cfg['ra_min_vol_scl'])
                 self.audio_player.play_sound(self.ra_snd, channel_id=1, volume=np.clip(vol_scl,0.0,1.0))
 
-        # 그래프 업데이트 주기 관리
-        self.plot_upd_cnt+=1
-        if self.plot_upd_cnt>=self.config['plot']['update_interval']:
-            self.update_plots() 
-            self.plot_upd_cnt=0
+        # 그래프 업데이트 주기 관리 -> 매 스텝 업데이트로 변경
+        # self.plot_upd_cnt+=1
+        # if self.plot_upd_cnt>=self.plot_upd_interval:
+        self.update_plots()
+        # self.plot_upd_cnt=0
 
     def closeEvent(self,e): 
         # pygame.mixer.quit() -> AudioPlayer가 처리
-        self.audio_player.quit_mixer() # AudioPlayer에 정리 요청
+        self.audio_player.quit()
         super().closeEvent(e)
 
 if __name__=='__main__': app=QApplication(sys.argv);w=TestWindow();w.show();sys.exit(app.exec()) 
