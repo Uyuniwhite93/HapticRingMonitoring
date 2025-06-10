@@ -1,29 +1,61 @@
 '''Audio Player for Haptic Feedback'''
 import pygame
 import numpy as np
+import logging
 
 class AudioPlayer:
     def __init__(self, freq=44100, size=-16, channels=2, buffer=1024):
         """Pygame mixer를 초기화합니다."""
-        pygame.mixer.init(freq, size, channels, buffer)
-        print(f"AudioPlayer initialized with: freq={freq}, size={size}, channels={channels}, buffer={buffer}")
+        try:
+            pygame.mixer.init(freq, size, channels, buffer)
+            self.is_initialized = True
+            print(f"AudioPlayer initialized with: freq={freq}, size={size}, channels={channels}, buffer={buffer}")
+        except pygame.error as e:
+            logging.error(f"Failed to initialize pygame mixer: {e}")
+            self.is_initialized = False
+        except Exception as e:
+            logging.error(f"Unexpected error during AudioPlayer initialization: {e}")
+            self.is_initialized = False
 
     def play_sound(self, sound_object, channel_id, volume=1.0):
         """주어진 사운드 객체를 지정된 채널과 볼륨으로 재생합니다."""
+        if not self.is_initialized:
+            logging.warning("AudioPlayer not initialized. Cannot play sound.")
+            return False
+            
         if not isinstance(sound_object, pygame.mixer.Sound):
-            print("Error: sound_object is not a pygame.mixer.Sound instance.")
-            return
+            logging.error("Error: sound_object is not a pygame.mixer.Sound instance.")
+            return False
+            
+        if not isinstance(channel_id, int) or channel_id < 0:
+            logging.error(f"Invalid channel_id: {channel_id}. Must be non-negative integer.")
+            return False
+            
         if not 0 <= volume <= 1.0:
-            print(f"Warning: Volume {volume} out of range (0.0-1.0). Clamping.")
+            logging.warning(f"Volume {volume} out of range (0.0-1.0). Clamping.")
             volume = np.clip(volume, 0.0, 1.0)
         
-        sound_object.set_volume(volume)
-        pygame.mixer.Channel(channel_id).play(sound_object)
+        try:
+            sound_object.set_volume(volume)
+            channel = pygame.mixer.Channel(channel_id)
+            channel.play(sound_object)
+            return True
+        except pygame.error as e:
+            logging.error(f"Failed to play sound: {e}")
+            return False
+        except Exception as e:
+            logging.error(f"Unexpected error during sound playback: {e}")
+            return False
 
     def quit(self):
         """Pygame mixer를 종료합니다."""
-        pygame.mixer.quit()
-        print("AudioPlayer quit.")
+        try:
+            if self.is_initialized:
+                pygame.mixer.quit()
+                self.is_initialized = False
+                print("AudioPlayer quit.")
+        except Exception as e:
+            logging.error(f"Error during AudioPlayer quit: {e}")
 
 # 사용 예시 (테스트용)
 if __name__ == '__main__':
