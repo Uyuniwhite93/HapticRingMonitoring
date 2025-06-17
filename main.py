@@ -106,7 +106,7 @@ class TestWindow(QMainWindow):
         main_w.setStyleSheet("background-color: #48484a;")  # 다크 테마 배경
         
         # 사용법 안내 라벨
-        self.info_lbl=QLabel("Click/SA, Move/RA (1-3 Mat)",self)
+        self.info_lbl=QLabel("Click/SA+RA_Click, Move/RA_Motion (1-3 Mat)",self)
         fnt=self.info_lbl.font();fnt.setPointSize(16);self.info_lbl.setFont(fnt)
         self.info_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.info_lbl)
@@ -127,20 +127,29 @@ class TestWindow(QMainWindow):
         self.sa_v_hist=deque([v_init_val_sa]*self.plot_hist_sz, maxlen=self.plot_hist_sz)  # SA 막전위 히스토리
         self.sa_u_hist=deque([u_init_sa]*self.plot_hist_sz, maxlen=self.plot_hist_sz)      # SA 회복변수 히스토리
         
-        # RA 뉴런 히스토리 초기화
-        v_init_val_ra = self.config['ra_neuron']['v_init']  # RA 뉴런 초기 막전위
+        # RA 움직임 뉴런 히스토리 초기화
+        v_init_val_ra_motion = self.config['ra_neuron']['v_init']  # RA 움직임 뉴런 초기 막전위
         ra_params_base = self.config['ra_neuron']
-        u_init_ra = IzhikevichNeuron(ra_params_base['base_a'], ra_params_base['base_b'], ra_params_base['base_c'], ra_params_base['base_d'], v_init=v_init_val_ra).u
-        self.ra_v_hist=deque([v_init_val_ra]*self.plot_hist_sz, maxlen=self.plot_hist_sz)  # RA 막전위 히스토리
-        self.ra_u_hist=deque([u_init_ra]*self.plot_hist_sz, maxlen=self.plot_hist_sz)      # RA 회복변수 히스토리
+        u_init_ra_motion = IzhikevichNeuron(ra_params_base['base_a'], ra_params_base['base_b'], ra_params_base['base_c'], ra_params_base['base_d'], v_init=v_init_val_ra_motion).u
+        self.ra_motion_v_hist=deque([v_init_val_ra_motion]*self.plot_hist_sz, maxlen=self.plot_hist_sz)  # RA 움직임 막전위 히스토리
+        self.ra_motion_u_hist=deque([u_init_ra_motion]*self.plot_hist_sz, maxlen=self.plot_hist_sz)      # RA 움직임 회복변수 히스토리
+        
+        # RA 클릭 뉴런 히스토리 초기화
+        v_init_val_ra_click = self.config['ra_click_neuron']['v_init']  # RA 클릭 뉴런 초기 막전위
+        ra_click_params = self.config['ra_click_neuron']
+        u_init_ra_click = IzhikevichNeuron(ra_click_params['a'], ra_click_params['b'], ra_click_params['c'], ra_click_params['d'], v_init=v_init_val_ra_click).u
+        self.ra_click_v_hist=deque([v_init_val_ra_click]*self.plot_hist_sz, maxlen=self.plot_hist_sz)  # RA 클릭 막전위 히스토리
+        self.ra_click_u_hist=deque([u_init_ra_click]*self.plot_hist_sz, maxlen=self.plot_hist_sz)      # RA 클릭 회복변수 히스토리
         
         self.x_data=np.arange(self.plot_hist_sz)  # X축 데이터 (시간축)
 
-        self.fig=Figure(figsize=(7,5)); self.ax_sa,self.ax_ra=self.fig.subplots(2,1)
+        # === 그래프 설정 (3개 뉴런용) ===
+        self.fig=Figure(figsize=(7,8)); self.ax_sa,self.ax_ra_motion,self.ax_ra_click=self.fig.subplots(3,1)
+        # SA 뉴런 그래프 설정
         self.sa_v_line,=self.ax_sa.plot(self.x_data,list(self.sa_v_hist),lw=1.8,label='SA_v', color='#007aff')
         self.sa_u_line,=self.ax_sa.plot(self.x_data,list(self.sa_u_hist),lw=1.8,label='SA_u', color='#ff9500')
-        self.ax_sa.set_title('SA Neuron')
-        self.ax_sa.set_ylabel('V (mV), U', fontsize=12)
+        self.ax_sa.set_title('SA Neuron (Pressure)')
+        self.ax_sa.set_ylabel('V (mV), U', fontsize=11)
         self.ax_sa.set_ylim(-90,40)
         self.ax_sa.set_xlim(0,self.plot_hist_sz-1);self.ax_sa.legend(loc='upper right', frameon=False);self.ax_sa.grid(True)
         self.ax_sa.spines['top'].set_visible(False); self.ax_sa.spines['right'].set_visible(False)
@@ -150,17 +159,28 @@ class TestWindow(QMainWindow):
         self.ax_sa.set_xticks(tick_locs)
         self.ax_sa.set_xticklabels(tick_labels)
 
-        self.ra_v_line,=self.ax_ra.plot(self.x_data,list(self.ra_v_hist),lw=1.8,label='RA_v', color='#007aff')
-        self.ra_u_line,=self.ax_ra.plot(self.x_data,list(self.ra_u_hist),lw=1.8,label='RA_u', color='#ff9500')
-        self.ax_ra.set_title('RA Neuron')
-        self.ax_ra.set_ylabel('V (mV), U', fontsize=12)
-        self.ax_ra.set_ylim(-90,40)
-        self.ax_ra.set_xlabel('Time (ms)', fontsize=12)
+        # RA 움직임 뉴런 그래프 설정
+        self.ra_motion_v_line,=self.ax_ra_motion.plot(self.x_data,list(self.ra_motion_v_hist),lw=1.8,label='RA_Motion_v', color='#007aff')
+        self.ra_motion_u_line,=self.ax_ra_motion.plot(self.x_data,list(self.ra_motion_u_hist),lw=1.8,label='RA_Motion_u', color='#ff9500')
+        self.ax_ra_motion.set_title('RA Motion Neuron (Movement)')
+        self.ax_ra_motion.set_ylabel('V (mV), U', fontsize=11)
+        self.ax_ra_motion.set_ylim(-90,40)
+        self.ax_ra_motion.set_xlim(0,self.plot_hist_sz-1);self.ax_ra_motion.legend(loc='upper right', frameon=False);self.ax_ra_motion.grid(True)
+        self.ax_ra_motion.spines['top'].set_visible(False); self.ax_ra_motion.spines['right'].set_visible(False)
+        self.ax_ra_motion.set_xticks(tick_locs)
+        self.ax_ra_motion.set_xticklabels(tick_labels)
 
-        self.ax_ra.set_xticks(tick_locs)
-        self.ax_ra.set_xticklabels(tick_labels)
-        self.ax_ra.set_xlim(0,self.plot_hist_sz-1);self.ax_ra.legend(loc='upper right', frameon=False);self.ax_ra.grid(True)
-        self.ax_ra.spines['top'].set_visible(False); self.ax_ra.spines['right'].set_visible(False)
+        # RA 클릭 뉴런 그래프 설정
+        self.ra_click_v_line,=self.ax_ra_click.plot(self.x_data,list(self.ra_click_v_hist),lw=1.8,label='RA_Click_v', color='#007aff')
+        self.ra_click_u_line,=self.ax_ra_click.plot(self.x_data,list(self.ra_click_u_hist),lw=1.8,label='RA_Click_u', color='#ff9500')
+        self.ax_ra_click.set_title('RA Click Neuron (Click On/Off)')
+        self.ax_ra_click.set_ylabel('V (mV), U', fontsize=11)
+        self.ax_ra_click.set_ylim(-90,40)
+        self.ax_ra_click.set_xlabel('Time (ms)', fontsize=12)
+        self.ax_ra_click.set_xlim(0,self.plot_hist_sz-1);self.ax_ra_click.legend(loc='upper right', frameon=False);self.ax_ra_click.grid(True)
+        self.ax_ra_click.spines['top'].set_visible(False); self.ax_ra_click.spines['right'].set_visible(False)
+        self.ax_ra_click.set_xticks(tick_locs)
+        self.ax_ra_click.set_xticklabels(tick_labels)
 
         self.fig.tight_layout(pad=3.0);self.plot_canvas=FigureCanvas(self.fig)
         layout.addWidget(self.plot_canvas);self.setCentralWidget(main_w)
@@ -171,6 +191,7 @@ class TestWindow(QMainWindow):
         self.spike_encoder = SpikeEncoder(
             sa_params=self.config['sa_neuron'],
             ra_params=self.config['ra_neuron'],
+            ra_click_params=self.config['ra_click_neuron'],
             neuron_dt_ms=self.config['neuron_dt_ms'],
             input_config=self.config['input_current']
         )
@@ -183,26 +204,8 @@ class TestWindow(QMainWindow):
         self.sound_cache = {}
         self._init_sounds()
 
-        sa_cfg = self.config['sa_neuron']
-        self.sa_init_a = sa_cfg['init_a']
-        self.sa_neuron=IzhikevichNeuron(sa_cfg['a'],sa_cfg['b'],sa_cfg['c'],sa_cfg['d'], v_init=sa_cfg['v_init'])
-        
-        ra_cfg = self.config['ra_neuron']
-        self.ra_base_d = ra_cfg['base_d']
-        self.ra_click_d_burst = ra_cfg['click_d_burst']
-        self.ra_neuron=IzhikevichNeuron(ra_cfg['base_a'], ra_cfg['base_b'], ra_cfg['base_c'], ra_cfg['base_d'], v_init=ra_cfg['v_init'])
-
-        curr_cfg = self.config['input_current']
-        self.input_mag=0.0;self.prev_input_mag=0.0
-        self.click_mag=curr_cfg['click_mag']
-        self.ra_scl_chg=curr_cfg['ra_scl_chg']
-        self.ra_scl_spd_dev=curr_cfg['ra_scl_spd_dev'] 
-        self.ra_clip_min=curr_cfg['ra_clip_min']
-        self.ra_clip_max=curr_cfg['ra_clip_max']
-
-        self.RA_SUSTAIN_DURATION = curr_cfg['RA_SUSTAIN_DURATION']
-        self.ra_sustained_click_input = 0.0
-        self.ra_sustain_counter = 0
+        # === 기존 개별 뉴런 변수들은 이제 SpikeEncoder에서 관리됨 ===
+        # 모든 뉴런 시뮬레이션은 self.spike_encoder.step()을 통해 처리
 
         self.m_pressed=False;self.last_m_pos=QPointF(0,0)
         self.last_m_t=time.perf_counter();self.m_spd=0.0
@@ -214,7 +217,8 @@ class TestWindow(QMainWindow):
         self.plot_upd_cnt=0
         self.plot_upd_interval=self.config['plot']['update_interval']
         self.sa_spike_idxs=deque(maxlen=self.plot_hist_sz)
-        self.ra_spike_idxs=deque(maxlen=self.plot_hist_sz)
+        self.ra_motion_spike_idxs=deque(maxlen=self.plot_hist_sz)
+        self.ra_click_spike_idxs=deque(maxlen=self.plot_hist_sz)
         self.drawn_spike_lines=[]
 
         self.update_stat_lbl()
@@ -223,38 +227,49 @@ class TestWindow(QMainWindow):
         self.last_neuron_update_time = time.perf_counter()
 
     def _init_sounds(self):
+        """사운드 객체들 초기화 - SA, RA 움직임, RA 클릭 각각 다른 주파수"""
         snd_cfg = self.config['sound']
+        
+        # SA 뉴런 사운드 (낮은 주파수, 긴 지속시간)
         self.sa_snd = self.haptic_renderer.create_sound_object(
             snd_cfg['sa_hz'], snd_cfg['sa_ms'], snd_cfg['sa_amp'], fade_out_ms=10
         )
         
+        # RA 클릭 뉴런 사운드 (높은 주파수, 짧은 지속시간, 큰 진폭)
+        self.ra_click_snd = self.haptic_renderer.create_sound_object(
+            snd_cfg['ra_click_hz'], snd_cfg['ra_click_ms'], snd_cfg['ra_click_amp'], fade_out_ms=10
+        )
+        
+        # RA 움직임 뉴런 사운드 (재질별로 다른 주파수)
         for mat_key, mat_props in self.materials.items():
-            new_hz = int(snd_cfg['ra_base_hz'] * mat_props['f'])
-            cache_key = f"ra_{mat_key}_{new_hz}"
+            new_hz = int(snd_cfg['ra_motion_base_hz'] * mat_props['f'])
+            cache_key = f"ra_motion_{mat_key}_{new_hz}"
             self.sound_cache[cache_key] = self.haptic_renderer.create_sound_object(
-                new_hz, snd_cfg['ra_ms'], snd_cfg['ra_base_amp'], fade_out_ms=10
+                new_hz, snd_cfg['ra_motion_ms'], snd_cfg['ra_motion_base_amp'], fade_out_ms=10
             )
         
-        self.ra_snd = self.sound_cache[f"ra_{self.curr_mat_key}_{int(snd_cfg['ra_base_hz'] * self.materials[self.curr_mat_key]['f'])}"]
+        self.ra_motion_snd = self.sound_cache[f"ra_motion_{self.curr_mat_key}_{int(snd_cfg['ra_motion_base_hz'] * self.materials[self.curr_mat_key]['f'])}"]
 
-    def _update_ra_sound(self): 
+    def _update_ra_motion_sound(self): 
+        """재질 변경 시 RA 움직임 뉴런 사운드 업데이트"""
         mat_props=self.materials[self.curr_mat_key]
         snd_cfg = self.config['sound']
-        new_hz=int(snd_cfg['ra_base_hz']*mat_props['f'])
-        self.ra_snd = self.haptic_renderer.create_sound_object(new_hz, snd_cfg['ra_ms'], snd_cfg['ra_base_amp'], fade_out_ms=10); self.update_stat_lbl()
+        new_hz=int(snd_cfg['ra_motion_base_hz']*mat_props['f'])
+        self.ra_motion_snd = self.haptic_renderer.create_sound_object(new_hz, snd_cfg['ra_motion_ms'], snd_cfg['ra_motion_base_amp'], fade_out_ms=10)
+        self.update_stat_lbl()
 
     def keyPressEvent(self,e:QKeyEvent):
         k=e.key()
         if Qt.Key.Key_1<=k<=Qt.Key.Key_3:
             self.curr_mat_key=self.mat_keys[k-Qt.Key.Key_1]
-            self.mat_roughness=self.materials[self.curr_mat_key]['r']; self._update_ra_sound()
+            self.mat_roughness=self.materials[self.curr_mat_key]['r']; self._update_ra_motion_sound()
         elif k == Qt.Key.Key_Space:
             if self.timer.isActive():
                 self.timer.stop()
                 self.info_lbl.setText("PAUSED - Press SPACE to resume")
             else:
                 self.timer.start(int(self.neuron_dt_ms))
-                self.info_lbl.setText("Click/SA, Move/RA (1-3 Mat)")
+                self.info_lbl.setText("Click/SA+RA_Click, Move/RA_Motion (1-3 Mat)")
         elif k == Qt.Key.Key_R:
             self._reset_simulation()
         elif k == Qt.Key.Key_Plus or k == Qt.Key.Key_Equal:
@@ -270,26 +285,33 @@ class TestWindow(QMainWindow):
         self.spike_encoder = SpikeEncoder(
             sa_params=self.config['sa_neuron'],
             ra_params=self.config['ra_neuron'],
+            ra_click_params=self.config['ra_click_neuron'],
             neuron_dt_ms=self.config['neuron_dt_ms'],
             input_config=self.config['input_current']
         )
         
         v_init_sa = self.config['sa_neuron']['v_init']
-        v_init_ra = self.config['ra_neuron']['v_init']
+        v_init_ra_motion = self.config['ra_neuron']['v_init']
+        v_init_ra_click = self.config['ra_click_neuron']['v_init']
         
         self.sa_v_hist.clear()
         self.sa_u_hist.clear()
-        self.ra_v_hist.clear()
-        self.ra_u_hist.clear()
+        self.ra_motion_v_hist.clear()
+        self.ra_motion_u_hist.clear()
+        self.ra_click_v_hist.clear()
+        self.ra_click_u_hist.clear()
         
         for _ in range(self.plot_hist_sz):
             self.sa_v_hist.append(v_init_sa)
             self.sa_u_hist.append(0.0)
-            self.ra_v_hist.append(v_init_ra)
-            self.ra_u_hist.append(0.0)
+            self.ra_motion_v_hist.append(v_init_ra_motion)
+            self.ra_motion_u_hist.append(0.0)
+            self.ra_click_v_hist.append(v_init_ra_click)
+            self.ra_click_u_hist.append(0.0)
         
         self.sa_spike_idxs.clear()
-        self.ra_spike_idxs.clear()
+        self.ra_motion_spike_idxs.clear()
+        self.ra_click_spike_idxs.clear()
         
         self.m_pressed = False
         self.m_spd = 0.0
@@ -300,14 +322,18 @@ class TestWindow(QMainWindow):
         print("Simulation reset!")
 
     def _adjust_volume(self, delta):
+        """모든 뉴런 사운드의 볼륨을 동시에 조절"""
         self.config['sound']['sa_sound_volume'] = max(0.0, min(1.0, 
             self.config['sound']['sa_sound_volume'] + delta))
         
-        self.config['sound']['ra_max_vol_scl'] = max(0.0, min(1.0,
-            self.config['sound']['ra_max_vol_scl'] + delta))
+        self.config['sound']['ra_motion_max_vol_scl'] = max(0.0, min(1.0,
+            self.config['sound']['ra_motion_max_vol_scl'] + delta))
+            
+        self.config['sound']['ra_click_volume'] = max(0.0, min(1.0,
+            self.config['sound']['ra_click_volume'] + delta))
         
         vol = self.config['sound']['sa_sound_volume']
-        print(f"Volume adjusted: {vol:.1f}")
+        print(f"Volume adjusted: SA={vol:.1f}, RA_Motion={self.config['sound']['ra_motion_max_vol_scl']:.1f}, RA_Click={self.config['sound']['ra_click_volume']:.1f}")
         
         self.update_stat_lbl()
 
@@ -337,9 +363,12 @@ class TestWindow(QMainWindow):
                 self.last_m_pos=p_now; self.last_m_t=t_now; self.update_stat_lbl()
 
     def update_plots(self):
+        """3개 뉴런 그래프 업데이트 (SA, RA Motion, RA Click)"""
+        # 기존 스파이크 라인들 제거
         for line in self.drawn_spike_lines: line.remove()
         self.drawn_spike_lines.clear()
 
+        # === SA 뉴런 그래프 업데이트 ===
         self.sa_v_line.set_ydata(list(self.sa_v_hist)); self.sa_u_line.set_ydata(list(self.sa_u_hist))
         new_sa_spike_idxs=deque(maxlen=self.sa_spike_idxs.maxlen)
         for x_idx in self.sa_spike_idxs:
@@ -350,15 +379,28 @@ class TestWindow(QMainWindow):
                     new_sa_spike_idxs.append(shifted_idx)
         self.sa_spike_idxs = new_sa_spike_idxs
 
-        self.ra_v_line.set_ydata(list(self.ra_v_hist)); self.ra_u_line.set_ydata(list(self.ra_u_hist))
-        new_ra_spike_idxs=deque(maxlen=self.ra_spike_idxs.maxlen)
-        for x_idx in self.ra_spike_idxs:
+        # === RA 움직임 뉴런 그래프 업데이트 ===
+        self.ra_motion_v_line.set_ydata(list(self.ra_motion_v_hist)); self.ra_motion_u_line.set_ydata(list(self.ra_motion_u_hist))
+        new_ra_motion_spike_idxs=deque(maxlen=self.ra_motion_spike_idxs.maxlen)
+        for x_idx in self.ra_motion_spike_idxs:
             if x_idx >= 0:
-                self.drawn_spike_lines.append(self.ax_ra.axvline(x_idx,color='#e60026',ls='--',lw=1.5))
+                self.drawn_spike_lines.append(self.ax_ra_motion.axvline(x_idx,color='#e60026',ls='--',lw=1.5))
                 shifted_idx = x_idx - self.plot_upd_interval
                 if shifted_idx >= 0:
-                    new_ra_spike_idxs.append(shifted_idx)
-        self.ra_spike_idxs = new_ra_spike_idxs
+                    new_ra_motion_spike_idxs.append(shifted_idx)
+        self.ra_motion_spike_idxs = new_ra_motion_spike_idxs
+        
+        # === RA 클릭 뉴런 그래프 업데이트 ===
+        self.ra_click_v_line.set_ydata(list(self.ra_click_v_hist)); self.ra_click_u_line.set_ydata(list(self.ra_click_u_hist))
+        new_ra_click_spike_idxs=deque(maxlen=self.ra_click_spike_idxs.maxlen)
+        for x_idx in self.ra_click_spike_idxs:
+            if x_idx >= 0:
+                self.drawn_spike_lines.append(self.ax_ra_click.axvline(x_idx,color='#e60026',ls='--',lw=1.5))
+                shifted_idx = x_idx - self.plot_upd_interval
+                if shifted_idx >= 0:
+                    new_ra_click_spike_idxs.append(shifted_idx)
+        self.ra_click_spike_idxs = new_ra_click_spike_idxs
+        
         self.plot_canvas.draw()
 
     def update_neuron(self):
@@ -384,9 +426,9 @@ class TestWindow(QMainWindow):
             self.m_spd=0.0;
             self.update_stat_lbl()
         
-        # === 뉴런 시뮬레이션 실행 ===
+        # === 3개 뉴런 시뮬레이션 실행 ===
         # SpikeEncoder를 통해 마우스 입력을 뉴런 자극으로 변환하고 시뮬레이션 실행
-        sa_f, ra_f, sa_vu, ra_vu = self.spike_encoder.step(
+        sa_f, ra_motion_f, ra_click_f, sa_vu, ra_motion_vu, ra_click_vu = self.spike_encoder.step(
             mouse_speed=self.m_spd,              # 현재 마우스 속도
             avg_mouse_speed=self.avg_m_spd,      # 평균 마우스 속도
             material_roughness=self.mat_roughness, # 현재 선택된 재질의 거칠기
@@ -396,7 +438,8 @@ class TestWindow(QMainWindow):
         # === 뉴런 상태 데이터 히스토리 업데이트 ===
         # 실시간 그래프 표시를 위해 최신 뉴런 상태를 히스토리에 추가
         self.sa_v_hist.append(sa_vu[0]); self.sa_u_hist.append(sa_vu[1])  # SA 뉴런 (v, u)
-        self.ra_v_hist.append(ra_vu[0]); self.ra_u_hist.append(ra_vu[1])  # RA 뉴런 (v, u)
+        self.ra_motion_v_hist.append(ra_motion_vu[0]); self.ra_motion_u_hist.append(ra_motion_vu[1])  # RA 움직임 뉴런 (v, u)
+        self.ra_click_v_hist.append(ra_click_vu[0]); self.ra_click_u_hist.append(ra_click_vu[1])  # RA 클릭 뉴런 (v, u)
 
         # === SA 뉴런 스파이크 처리 ===
         if sa_f:  # SA 뉴런이 스파이크를 발생시킨 경우
@@ -405,29 +448,36 @@ class TestWindow(QMainWindow):
             # SA 뉴런 전용 사운드 재생 (채널 0, 설정된 볼륨)
             self.audio_player.play_sound(self.sa_snd, channel_id=0, volume=self.config['sound'].get('sa_sound_volume', 1.0))
 
-        # === RA 뉴런 스파이크 처리 ===
-        if ra_f:  # RA 뉴런이 스파이크를 발생시킨 경우
+        # === RA 움직임 뉴런 스파이크 처리 ===
+        if ra_motion_f:  # RA 움직임 뉴런이 스파이크를 발생시킨 경우
             # 그래프에 스파이크 마커 추가
-            self.ra_spike_idxs.append(self.plot_hist_sz-1) 
-            if self.ra_snd:
+            self.ra_motion_spike_idxs.append(self.plot_hist_sz-1) 
+            if self.ra_motion_snd:
                 # 마우스 속도에 따른 동적 볼륨 계산
                 s=self.m_spd  # 현재 마우스 속도
                 snd_cfg = self.config['sound']
-                vol_scl=snd_cfg['ra_min_vol_scl']  # 기본 최소 볼륨
+                vol_scl=snd_cfg['ra_motion_min_vol_scl']  # 기본 최소 볼륨
                 
                 # 속도 구간에 따른 볼륨 스케일링
-                if s<=snd_cfg['ra_vol_min_spd']: 
-                    vol_scl=snd_cfg['ra_min_vol_scl']  # 낮은 속도: 최소 볼륨
-                elif s>=snd_cfg['ra_vol_max_spd']: 
-                    vol_scl=snd_cfg['ra_max_vol_scl']  # 높은 속도: 최대 볼륨
+                if s<=snd_cfg['ra_motion_vol_min_spd']: 
+                    vol_scl=snd_cfg['ra_motion_min_vol_scl']  # 낮은 속도: 최소 볼륨
+                elif s>=snd_cfg['ra_motion_vol_max_spd']: 
+                    vol_scl=snd_cfg['ra_motion_max_vol_scl']  # 높은 속도: 최대 볼륨
                 else:
                     # 중간 속도: 선형 보간으로 볼륨 계산
-                    den=snd_cfg['ra_vol_max_spd']-snd_cfg['ra_vol_min_spd']
+                    den=snd_cfg['ra_motion_vol_max_spd']-snd_cfg['ra_motion_vol_min_spd']
                     if den>0: 
-                        vol_scl=snd_cfg['ra_min_vol_scl']+((s-snd_cfg['ra_vol_min_spd'])/den)*(snd_cfg['ra_max_vol_scl']-snd_cfg['ra_min_vol_scl'])
+                        vol_scl=snd_cfg['ra_motion_min_vol_scl']+((s-snd_cfg['ra_motion_vol_min_spd'])/den)*(snd_cfg['ra_motion_max_vol_scl']-snd_cfg['ra_motion_min_vol_scl'])
                 
-                # RA 뉴런 전용 사운드 재생 (채널 1, 계산된 볼륨)
-                self.audio_player.play_sound(self.ra_snd, channel_id=1, volume=np.clip(vol_scl,0.0,1.0))
+                # RA 움직임 뉴런 전용 사운드 재생 (채널 1, 계산된 볼륨)
+                self.audio_player.play_sound(self.ra_motion_snd, channel_id=1, volume=np.clip(vol_scl,0.0,1.0))
+
+        # === RA 클릭 뉴런 스파이크 처리 ===
+        if ra_click_f:  # RA 클릭 뉴런이 스파이크를 발생시킨 경우
+            # 그래프에 스파이크 마커 추가
+            self.ra_click_spike_idxs.append(self.plot_hist_sz-1)
+            # RA 클릭 뉴런 전용 사운드 재생 (채널 2, 고정 볼륨)
+            self.audio_player.play_sound(self.ra_click_snd, channel_id=2, volume=self.config['sound'].get('ra_click_volume', 1.0))
 
         # === 그래프 업데이트 ===
         # 매 프레임마다 그래프를 업데이트하면 성능 저하가 발생하므로 주기적으로만 업데이트
@@ -450,18 +500,25 @@ class TestWindow(QMainWindow):
             },
             'ra_neuron': {
                 'base_a': 0.15, 'base_b': 0.25, 'base_c': -65.0, 'base_d': 1.5,
-                'v_init': -65.0, 'click_d_burst': 25.0,
+                'v_init': -65.0,
+            },
+            'ra_click_neuron': {
+                'a': 0.2, 'b': 0.25, 'c': -65.0, 'd': 6.0,
+                'v_init': -65.0,
             },
             'input_current': {
-                'click_mag': 12.0, 'ra_scl_chg': 20.0, 'ra_scl_spd_dev': 0.02,
-                'ra_clip_min': -30.0, 'ra_clip_max': 30.0,
-                'RA_SUSTAIN_DURATION': 5, 'ra_min_spd_for_input': 1.0,
+                'click_mag': 12.0, 
+                'ra_click_scl_chg': 25.0, 'RA_CLICK_SUSTAIN_DURATION': 3,
+                'ra_motion_scl_spd_dev': 0.02, 'ra_min_spd_for_input': 1.0,
+                'ra_click_clip_min': -40.0, 'ra_click_clip_max': 40.0,
+                'ra_motion_clip_min': -30.0, 'ra_motion_clip_max': 30.0,
             },
             'sound': {
                 'sa_hz': 50, 'sa_ms': 120, 'sa_amp': 0.15, 'sa_sound_volume': 1.0,
-                'ra_base_hz': 80, 'ra_ms': 100, 'ra_base_amp': 0.6,
-                'ra_vol_min_spd': 100.0, 'ra_vol_max_spd': 5000.0,
-                'ra_min_vol_scl': 0.6, 'ra_max_vol_scl': 1,
+                'ra_motion_base_hz': 80, 'ra_motion_ms': 100, 'ra_motion_base_amp': 0.6,
+                'ra_motion_vol_min_spd': 100.0, 'ra_motion_vol_max_spd': 5000.0,
+                'ra_motion_min_vol_scl': 0.6, 'ra_motion_max_vol_scl': 1.0,
+                'ra_click_hz': 100, 'ra_click_ms': 80, 'ra_click_amp': 0.8, 'ra_click_volume': 1.0,
             },
             'mouse': {
                 'max_spd_clamp': 100000.0, 'm_stop_thresh': 0.02,
@@ -478,14 +535,31 @@ class TestWindow(QMainWindow):
         return config
 
     def _validate_config(self, config):
+        """새로운 3개 뉴런 설정 구조 검증"""
         assert config['neuron_dt_ms'] > 0, "neuron_dt_ms must be positive"
         assert config['plot_hist_sz'] > 0, "plot_hist_sz must be positive"
         
+        # SA 뉴런 파라미터 검증
+        sa_cfg = config['sa_neuron']
+        assert 'a' in sa_cfg and 'b' in sa_cfg and 'c' in sa_cfg and 'd' in sa_cfg, "SA neuron missing parameters"
+        
+        # RA 움직임 뉴런 파라미터 검증
+        ra_cfg = config['ra_neuron']
+        assert 'base_a' in ra_cfg and 'base_b' in ra_cfg and 'base_c' in ra_cfg and 'base_d' in ra_cfg, "RA motion neuron missing parameters"
+        
+        # RA 클릭 뉴런 파라미터 검증  
+        ra_click_cfg = config['ra_click_neuron']
+        assert 'a' in ra_click_cfg and 'b' in ra_click_cfg and 'c' in ra_click_cfg and 'd' in ra_click_cfg, "RA click neuron missing parameters"
+        
+        # 사운드 설정 검증
         sound_cfg = config['sound']
         assert 0 < sound_cfg['sa_hz'] < 22050, "sa_hz must be in valid audio range"
-        assert 0 < sound_cfg['ra_base_hz'] < 22050, "ra_base_hz must be in valid audio range"
+        assert 0 < sound_cfg['ra_motion_base_hz'] < 22050, "ra_motion_base_hz must be in valid audio range"
+        assert 0 < sound_cfg['ra_click_hz'] < 22050, "ra_click_hz must be in valid audio range"
         assert 0 <= sound_cfg['sa_sound_volume'] <= 1.0, "sa_sound_volume must be 0-1"
+        assert 0 <= sound_cfg['ra_click_volume'] <= 1.0, "ra_click_volume must be 0-1"
         
+        # 재질 설정 검증
         for mat_name, mat_props in config['materials'].items():
             assert 'r' in mat_props and 'f' in mat_props, f"Material {mat_name} missing properties"
             assert mat_props['r'] > 0, f"Material {mat_name} roughness must be positive"
@@ -493,4 +567,5 @@ class TestWindow(QMainWindow):
         
         print("Configuration validated successfully!")
 
-if __name__=='__main__': app=QApplication(sys.argv);w=TestWindow();w.show();sys.exit(app.exec()) 
+if __name__=='__main__': 
+    app=QApplication(sys.argv);w=TestWindow();w.show();sys.exit(app.exec()) 
