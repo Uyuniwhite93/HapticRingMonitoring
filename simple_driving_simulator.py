@@ -18,6 +18,15 @@ class DrivingSimulator:
         self.keys_pressed = {
             'w': False, 'a': False, 's': False, 'd': False
         }
+
+        # action 관련
+        self.throttle = 0.0 # 엑셀
+        self.steering = 0.0 # 스티어링
+        self.max_throttle = 1.0 # 최대 엑셀
+        self.max_steering = 1.0 # 최대 스티어링
+        self.throttle_step = 0.02
+        self.steering_step = 0.02
+        # action 관련
         
         # UI overlays for driving only
         self.overlays = {}
@@ -27,7 +36,7 @@ class DrivingSimulator:
             "use_render": True,
             "traffic_density": 0.1,
             "map": "OOOOOOOOOO",
-            "manual_control": True,
+            "manual_control": False, # True로 해놓으면 meta drive에서 설정한 대로 동작함
             "start_seed": 42,
             "window_size": (1200, 800),
             "horizon": 999999,
@@ -80,7 +89,7 @@ class DrivingSimulator:
                 print("Vehicle keyboard bindings setup complete")
         except Exception as e:
             print(f"Keyboard setup error: {e}")
-    
+
     def on_key_press(self, key):
         """Handle key press for vehicle"""
         if key in self.keys_pressed:
@@ -90,7 +99,7 @@ class DrivingSimulator:
         """Handle key release for vehicle"""
         if key in self.keys_pressed:
             self.keys_pressed[key] = False
-    
+        
     def setup_ui_overlays(self, env):
         """Setup UI overlays for driving info only"""
         try:
@@ -179,24 +188,50 @@ class DrivingSimulator:
             pass
     
     def get_vehicle_action(self):
-        """Get vehicle action from keyboard input"""
-        throttle = 0.0
-        steering = 0.0
+        # 누적 가속/조향 증가
+        if self.keys_pressed['w']:
+            self.throttle = min(self.throttle + (self.throttle_step * 5), self.max_throttle)
+        elif self.keys_pressed['s']:
+            self.throttle = max(self.throttle - (self.throttle_step * 10), -self.max_throttle)
+        else:
+            # 입력 없으면 천천히 줄어듦
+            self.throttle *= 0.9
+
+        if self.keys_pressed['a']:
+            self.steering = min(self.steering + self.steering_step, self.max_steering)
+        elif self.keys_pressed['d']:
+            self.steering = max(self.steering - self.steering_step, -self.max_steering)
+        else:
+            self.steering *= 0.7  # 조향은 좀 더 빠르게 중립 복귀
+
+        return [self.steering, self.throttle]
+
+    # def get_vehicle_action(self):
+    #     """Get vehicle action from keyboard input"""
+    #     throttle = 0.0
+    #     steering = 0.0
         
-        if self.keys_pressed['w']:  # Forward
-            throttle = 0.6
-        if self.keys_pressed['s']:  # Backward
-            throttle = -0.3
-        if self.keys_pressed['a']:  # Left
-            steering = -0.5
-        if self.keys_pressed['d']:  # Right
-            steering = 0.5
+    #     print(f"[DEBUG] keys_pressed: {self.keys_pressed}")
         
-        # Auto forward if no input
-        if not any(self.keys_pressed.values()):
-            throttle = 0.2
+    #     if self.keys_pressed['w']:  # Forward
+    #         throttle = 0.6
+    #     if self.keys_pressed['s']:  # Backward
+    #         throttle = -0.3
+    #     if self.keys_pressed['d']:  # Right
+    #         steering = -0.5
+    #     if self.keys_pressed['a']:  # Left
+    #         steering = 0.5            
+    #     # if self.keys_pressed['a']:  # Left
+    #     #     steering = -0.5
+    #     # if self.keys_pressed['d']:  # Right
+    #     #     steering = 0.5
         
-        return [throttle, steering]
+    #     # Auto forward if no input
+    #     if not any(self.keys_pressed.values()):
+    #         throttle = 0.0
+        
+    #     # return [throttle, steering]
+    #     return [steering, throttle] # meta drive action 포맷이 steering, thottle임
     
     def cleanup_overlays(self):
         """Clean up UI overlays"""
@@ -243,7 +278,7 @@ class DrivingSimulator:
             
             while True:
                 # Get vehicle action
-                action = self.get_vehicle_action()
+                action = self.get_vehicle_action() 
                 obs, reward, terminated, truncated, info = env.step(action)
                 
                 # Update displays
@@ -275,8 +310,10 @@ class DrivingSimulator:
             env.close()
 
 def main():
+    from globalKeyEvent import ClassKeyEvent
     simulator = DrivingSimulator()
+    keyboardInstance = ClassKeyEvent(simulator)
     simulator.run()
-
+    
 if __name__ == "__main__":
-    main() 
+    main()
