@@ -16,7 +16,7 @@ class AudioPlayer:
     서로 다른 주파수의 소리로 구분하여 재생합니다.
     """
     
-    def __init__(self, freq=44100, size=-16, channels=1, buffer=16):
+    def __init__(self, freq=44100, size=-16, channels=1, buffer=128):
         """
         Pygame mixer를 초기화합니다.
         

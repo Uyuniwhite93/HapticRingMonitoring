@@ -106,13 +106,13 @@ class TestWindow(QMainWindow):
         main_w.setStyleSheet("background-color: #48484a;")  # 다크 테마 배경
         
         # 사용법 안내 라벨
-        self.info_lbl=QLabel("Click/SA+RA_Click, Move/RA_Motion (1-3 Mat)",self)
+        self.info_lbl=QLabel("Click/SA+RA_Click, Move/RA_Motion (1-7 Materials)",self)
         fnt=self.info_lbl.font();fnt.setPointSize(16);self.info_lbl.setFont(fnt)
         self.info_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.info_lbl)
         
         # 상태 정보 라벨 (현재 재질, 마우스 속도, 볼륨 등)
-        self.stat_lbl=QLabel("Mat:S(R:0.3)|Spd:0",self)
+        self.stat_lbl=QLabel("Mat:Glass(R:0.5)|Spd:0",self)
         fnt=self.stat_lbl.font();fnt.setPointSize(14);self.stat_lbl.setFont(fnt)
         self.stat_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.stat_lbl)
@@ -235,41 +235,106 @@ class TestWindow(QMainWindow):
             snd_cfg['sa_hz'], snd_cfg['sa_ms'], snd_cfg['sa_amp'], fade_out_ms=10
         )
         
-        # RA 클릭 뉴런 사운드 (높은 주파수, 짧은 지속시간, 큰 진폭)
-        self.ra_click_snd = self.haptic_renderer.create_sound_object(
-            snd_cfg['ra_click_hz'], snd_cfg['ra_click_ms'], snd_cfg['ra_click_amp'], fade_out_ms=10
-        )
-        
-        # RA 움직임 뉴런 사운드 (재질별로 다른 주파수)
+        # 재질별로 RA 움직임과 RA 클릭 사운드 생성
         for mat_key, mat_props in self.materials.items():
-            new_hz = int(snd_cfg['ra_motion_base_hz'] * mat_props['f'])
-            cache_key = f"ra_motion_{mat_key}_{new_hz}"
-            self.sound_cache[cache_key] = self.haptic_renderer.create_sound_object(
-                new_hz, snd_cfg['ra_motion_ms'], snd_cfg['ra_motion_base_amp'], fade_out_ms=10
-            )
+            # RA 움직임 뉴런 사운드 (재질별 특화 파형)
+            ra_motion_hz = int(snd_cfg['ra_motion_base_hz'] * mat_props['f'])
+            ra_motion_cache_key = f"ra_motion_{mat_key}_{ra_motion_hz}"
+            
+            if 'type' in mat_props:
+                # 재질별 특성 파라미터 추출
+                material_params = {k: v for k, v in mat_props.items() if k not in ['r', 'f', 'type']}
+                self.sound_cache[ra_motion_cache_key] = self.haptic_renderer.create_material_sound(
+                    mat_props['type'], ra_motion_hz, snd_cfg['ra_motion_ms'], snd_cfg['ra_motion_base_amp'], 
+                    fade_out_ms=10, **material_params
+                )
+                print(f"Created {mat_props['type']} RA_Motion sound for {mat_key}: {ra_motion_hz}Hz with params {material_params}")
+            else:
+                # 기본 사인파 사용
+                self.sound_cache[ra_motion_cache_key] = self.haptic_renderer.create_sound_object(
+                    ra_motion_hz, snd_cfg['ra_motion_ms'], snd_cfg['ra_motion_base_amp'], fade_out_ms=10
+                )
+            
+            # RA 클릭 뉴런 사운드도 재질별로 생성 (NEW!)
+            ra_click_hz = int(snd_cfg['ra_click_hz'] * mat_props['f'])  # 재질별 주파수 계수 적용
+            ra_click_cache_key = f"ra_click_{mat_key}_{ra_click_hz}"
+            
+            if 'type' in mat_props:
+                # 클릭은 짧고 강하게 - 진폭을 1.2배로 증가, 지속시간은 그대로
+                click_amp = snd_cfg['ra_click_amp'] * 1.2
+                material_params = {k: v for k, v in mat_props.items() if k not in ['r', 'f', 'type']}
+                self.sound_cache[ra_click_cache_key] = self.haptic_renderer.create_material_sound(
+                    mat_props['type'], ra_click_hz, snd_cfg['ra_click_ms'], click_amp, 
+                    fade_out_ms=5, **material_params  # 클릭은 더 빠른 페이드아웃
+                )
+                print(f"Created {mat_props['type']} RA_Click sound for {mat_key}: {ra_click_hz}Hz")
+            else:
+                # 기본 사인파 사용
+                self.sound_cache[ra_click_cache_key] = self.haptic_renderer.create_sound_object(
+                    ra_click_hz, snd_cfg['ra_click_ms'], snd_cfg['ra_click_amp'], fade_out_ms=5
+                )
         
+        # 현재 재질의 사운드들 설정
         self.ra_motion_snd = self.sound_cache[f"ra_motion_{self.curr_mat_key}_{int(snd_cfg['ra_motion_base_hz'] * self.materials[self.curr_mat_key]['f'])}"]
+        self.ra_click_snd = self.sound_cache[f"ra_click_{self.curr_mat_key}_{int(snd_cfg['ra_click_hz'] * self.materials[self.curr_mat_key]['f'])}"]
 
     def _update_ra_motion_sound(self): 
-        """재질 변경 시 RA 움직임 뉴런 사운드 업데이트"""
+        """재질 변경 시 RA 움직임 뉴런과 RA 클릭 뉴런 사운드 모두 업데이트"""
         mat_props=self.materials[self.curr_mat_key]
         snd_cfg = self.config['sound']
-        new_hz=int(snd_cfg['ra_motion_base_hz']*mat_props['f'])
-        self.ra_motion_snd = self.haptic_renderer.create_sound_object(new_hz, snd_cfg['ra_motion_ms'], snd_cfg['ra_motion_base_amp'], fade_out_ms=10)
+        
+        # RA 움직임 사운드 업데이트
+        ra_motion_hz=int(snd_cfg['ra_motion_base_hz']*mat_props['f'])
+        ra_motion_cache_key = f"ra_motion_{self.curr_mat_key}_{ra_motion_hz}"
+        
+        if ra_motion_cache_key in self.sound_cache:
+            self.ra_motion_snd = self.sound_cache[ra_motion_cache_key]
+        else:
+            # 재질별 특화 파형 사용
+            if 'type' in mat_props:
+                material_params = {k: v for k, v in mat_props.items() if k not in ['r', 'f', 'type']}
+                self.ra_motion_snd = self.haptic_renderer.create_material_sound(
+                    mat_props['type'], ra_motion_hz, snd_cfg['ra_motion_ms'], snd_cfg['ra_motion_base_amp'], 
+                    fade_out_ms=10, **material_params
+                )
+                print(f"Updated to {mat_props['type']} RA_Motion sound: {ra_motion_hz}Hz")
+            else:
+                self.ra_motion_snd = self.haptic_renderer.create_sound_object(ra_motion_hz, snd_cfg['ra_motion_ms'], snd_cfg['ra_motion_base_amp'], fade_out_ms=10)
+        
+        # RA 클릭 사운드 업데이트 (NEW!)
+        ra_click_hz=int(snd_cfg['ra_click_hz']*mat_props['f'])
+        ra_click_cache_key = f"ra_click_{self.curr_mat_key}_{ra_click_hz}"
+        
+        if ra_click_cache_key in self.sound_cache:
+            self.ra_click_snd = self.sound_cache[ra_click_cache_key]
+        else:
+            # 재질별 특화 파형 사용
+            if 'type' in mat_props:
+                click_amp = snd_cfg['ra_click_amp'] * 1.2
+                material_params = {k: v for k, v in mat_props.items() if k not in ['r', 'f', 'type']}
+                self.ra_click_snd = self.haptic_renderer.create_material_sound(
+                    mat_props['type'], ra_click_hz, snd_cfg['ra_click_ms'], click_amp, 
+                    fade_out_ms=5, **material_params
+                )
+                print(f"Updated to {mat_props['type']} RA_Click sound: {ra_click_hz}Hz")
+            else:
+                self.ra_click_snd = self.haptic_renderer.create_sound_object(ra_click_hz, snd_cfg['ra_click_ms'], snd_cfg['ra_click_amp'], fade_out_ms=5)
+        
         self.update_stat_lbl()
 
     def keyPressEvent(self,e:QKeyEvent):
         k=e.key()
-        if Qt.Key.Key_1<=k<=Qt.Key.Key_3:
-            self.curr_mat_key=self.mat_keys[k-Qt.Key.Key_1]
-            self.mat_roughness=self.materials[self.curr_mat_key]['r']; self._update_ra_motion_sound()
+        if Qt.Key.Key_1<=k<=Qt.Key.Key_7:
+            if k-Qt.Key.Key_1 < len(self.mat_keys):
+                self.curr_mat_key=self.mat_keys[k-Qt.Key.Key_1]
+                self.mat_roughness=self.materials[self.curr_mat_key]['r']; self._update_ra_motion_sound()
         elif k == Qt.Key.Key_Space:
             if self.timer.isActive():
                 self.timer.stop()
                 self.info_lbl.setText("PAUSED - Press SPACE to resume")
             else:
                 self.timer.start(int(self.neuron_dt_ms))
-                self.info_lbl.setText("Click/SA+RA_Click, Move/RA_Motion (1-3 Mat)")
+                self.info_lbl.setText("Click/SA+RA_Click, Move/RA_Motion (1-7 Materials)")
         elif k == Qt.Key.Key_R:
             self._reset_simulation()
         elif k == Qt.Key.Key_Plus or k == Qt.Key.Key_Equal:
@@ -491,43 +556,137 @@ class TestWindow(QMainWindow):
         super().closeEvent(e)
 
     def _get_validated_config(self):
+        """
+        햅틱 피드백 시스템의 모든 설정값을 정의하는 함수
+        뉴런 모델, 사운드, 재질 등 시스템 전체 파라미터를 포함
+        """
         config = {
-            'neuron_dt_ms': 1.0,
-            'plot_hist_sz': 500,
+            # === 시뮬레이션 기본 설정 ===
+            'neuron_dt_ms': 1.0,        # 뉴런 시뮬레이션 시간 간격 (밀리초) - 1ms마다 뉴런 상태 업데이트
+            'plot_hist_sz': 500,        # 그래프에 표시할 데이터 포인트 수 - 500개 = 2.5초 분량 (500ms * 5업데이트간격)
+            
+            # === SA 뉴런 (압력 감지) 파라미터 ===
+            # Izhikevich 뉴런 모델의 수학적 파라미터들
             'sa_neuron': {
-                'a': 0.03, 'b': 0.25, 'c': -65.0, 'd': 6.0,
-                'v_init': -70.0, 'init_a': 0.03,
+                'a': 0.05,              # 회복변수(u)의 회복 속도 - 반응속도 향상을 위해 0.03->0.05로 증가
+                'b': 0.25,              # 막전위(v)와 회복변수(u) 간의 결합 강도 - 뉴런의 민감도 조절
+                'c': -65.0,             # 스파이크 후 리셋 전압 (mV) - 스파이크 후 막전위가 이 값으로 리셋
+                'd': 6.0,               # 스파이크 후 회복변수(u) 증가량 - 스파이크 후 일시적 비활성화 정도
+                'v_init': -70.0,        # 초기 막전위 (mV) - 뉴런의 휴지 전위
+                'init_a': 0.05,         # SA 뉴런의 초기 a값 (적응을 위해 동적으로 변경됨)
             },
+            
+            # === RA 움직임 뉴런 (움직임/진동 감지) 파라미터 ===
             'ra_neuron': {
-                'base_a': 0.15, 'base_b': 0.25, 'base_c': -65.0, 'base_d': 1.5,
-                'v_init': -65.0,
+                'base_a': 0.4,         # 기본 a값 - 반응속도 향상을 위해 0.3->0.4로 증가
+                'base_b': 0.25,         # 기본 b값 - 막전위 민감도
+                'base_c': -65.0,        # 스파이크 후 리셋 전압 (mV)
+                'base_d': 1.5,          # 스파이크 후 회복변수 증가량 - SA보다 작아서 빠른 반복 스파이크 가능
+                'v_init': -65.0,        # 초기 막전위 (mV) - SA보다 높아서 더 민감
             },
+            
+            # === RA 클릭 뉴런 (클릭 순간 감지) 파라미터 ===
             'ra_click_neuron': {
-                'a': 0.2, 'b': 0.25, 'c': -65.0, 'd': 6.0,
-                'v_init': -65.0,
+                'a': 0.3,               # 매우 빠른 회복 - 반응속도 향상을 위해 0.2->0.3으로 증가
+                'b': 0.25,              # 막전위 민감도
+                'c': -65.0,             # 스파이크 후 리셋 전압 (mV)
+                'd': 6.0,               # 스파이크 후 회복변수 증가량
+                'v_init': -65.0,        # 초기 막전위 (mV)
             },
+            
+            # === 입력 전류 설정 (마우스 → 뉴런 변환) ===
             'input_current': {
-                'click_mag': 12.0, 
-                'ra_click_scl_chg': 25.0, 'RA_CLICK_SUSTAIN_DURATION': 3,
-                'ra_motion_scl_spd_dev': 0.02, 'ra_min_spd_for_input': 1.0,
-                'ra_click_clip_min': -40.0, 'ra_click_clip_max': 40.0,
-                'ra_motion_clip_min': -30.0, 'ra_motion_clip_max': 30.0,
+                'click_mag': 12.0,              # 마우스 클릭 시 SA 뉴런에 가해지는 기본 전류 강도
+                'ra_click_scl_chg': 25.0,       # RA 클릭 뉴런 전류 스케일링 - 클릭 변화량에 곱해지는 계수
+                'RA_CLICK_SUSTAIN_DURATION': 3, # RA 클릭 뉴런 자극 지속 프레임 수 (3프레임 = 3ms)
+                'ra_motion_scl_spd_dev': 0.02,  # RA 움직임 뉴런 전류 스케일링 - 마우스 속도*거칠기에 곱해지는 계수
+                'ra_min_spd_for_input': 1.0,    # RA 움직임 뉴런 활성화 최소 마우스 속도 (픽셀/ms)
+                'ra_click_clip_min': -40.0,     # RA 클릭 뉴런 입력 전류 최소값 (클리핑)
+                'ra_click_clip_max': 40.0,      # RA 클릭 뉴런 입력 전류 최대값 (클리핑)
+                'ra_motion_clip_min': -30.0,    # RA 움직임 뉴런 입력 전류 최소값 (클리핑)
+                'ra_motion_clip_max': 30.0,     # RA 움직임 뉴런 입력 전류 최대값 (클리핑)
             },
+            
+            # === 사운드 설정 (뉴런 → 오디오 변환) ===
             'sound': {
-                'sa_hz': 50, 'sa_ms': 120, 'sa_amp': 0.15, 'sa_sound_volume': 1.0,
-                'ra_motion_base_hz': 80, 'ra_motion_ms': 100, 'ra_motion_base_amp': 0.6,
-                'ra_motion_vol_min_spd': 100.0, 'ra_motion_vol_max_spd': 5000.0,
-                'ra_motion_min_vol_scl': 0.6, 'ra_motion_max_vol_scl': 1.0,
-                'ra_click_hz': 100, 'ra_click_ms': 80, 'ra_click_amp': 0.8, 'ra_click_volume': 1.0,
+                # SA 뉴런 사운드 (압력 피드백)
+                'sa_hz': 25,                    # SA 뉴런 기본 주파수 (Hz) - 더 낮은 주파수로 부드러운 압력감
+                'sa_ms': 120,                   # SA 뉴런 사운드 지속시간 (ms) - 길게 지속되는 압력감
+                'sa_amp': 0.25,                 # SA 뉴런 사운드 진폭 (0.15->0.25로 증가)
+                'sa_sound_volume': 0.9,         # SA 뉴런 최종 볼륨 (1.0->0.9로 약간 줄여서 균형)
+                
+                # RA 움직임 뉴런 사운드 (움직임 피드백)
+                'ra_motion_base_hz': 35,        # RA 움직임 뉴런 기본 주파수 (45->35Hz로 낮춤)
+                'ra_motion_ms': 90,             # RA 움직임 뉴런 사운드 지속시간 (100->90ms로 약간 단축)
+                'ra_motion_base_amp': 0.6,      # RA 움직임 뉴런 기본 진폭 (0.4->0.6로 증가)
+                'ra_motion_vol_min_spd': 100.0, # RA 움직임 뉴런 최소 볼륨 적용 마우스 속도
+                'ra_motion_vol_max_spd': 5000.0,# RA 움직임 뉴런 최대 볼륨 적용 마우스 속도
+                'ra_motion_min_vol_scl': 0.5,   # RA 움직임 뉴런 최소 볼륨 스케일 (0.4->0.5로 증가)
+                'ra_motion_max_vol_scl': 1.0,   # RA 움직임 뉴런 최대 볼륨 스케일 (0.8->1.0로 증가)
+                
+                # RA 클릭 뉴런 사운드 (클릭 순간 피드백)
+                'ra_click_hz': 50,              # RA 클릭 뉴런 주파수 (60->50Hz로 낮춤)
+                'ra_click_ms': 70,              # RA 클릭 뉴런 사운드 지속시간 (80->70ms로 단축)
+                'ra_click_amp': 0.7,            # RA 클릭 뉴런 진폭 (0.6->0.7로 증가)
+                'ra_click_volume': 0.9,         # RA 클릭 뉴런 최종 볼륨 (1.0->0.9)
             },
+            
+            # === 마우스 입력 설정 ===
             'mouse': {
-                'max_spd_clamp': 100000.0, 'm_stop_thresh': 0.02,
+                'max_spd_clamp': 100000.0,      # 마우스 속도 최대 제한값 (픽셀/초) - 너무 빠른 움직임 제한
+                'm_stop_thresh': 0.02,          # 마우스 정지 감지 임계값 (초) - 이 시간 이상 움직임 없으면 정지로 판단
             },
-            'plot': {'update_interval': 5,},
+            
+            # === 그래프 표시 설정 ===
+            'plot': {
+                'update_interval': 5,           # 그래프 업데이트 간격 (프레임) - 원래대로 5프레임마다 그래프 갱신
+            },
+            
+            # === 재질별 설정 (키보드 1-7로 선택) ===
             'materials': {
-                'S': {'r': 0.3, 'f': 1.0},
-                'M': {'r': 0.7, 'f': 1.1},
-                'R': {'r': 1.2, 'f': 1.2}
+                # 각 재질마다 r(거칠기), f(주파수계수), type(파형타입), 특성파라미터를 정의
+                'Glass': {          # 유리 (키보드 1)
+                    'r': 0.5,           # 거칠기 - RA 움직임 뉴런 민감도 (낮음: 부드러운 표면)
+                    'f': 1.3,           # 주파수 계수 - 기본 주파수(45Hz)에 곱해져서 58.5Hz
+                    'type': 'glass',    # 파형 타입 - 유리 특화 파형 사용
+                    'brightness': 2.5   # 유리 특성 - 배음 밝기 조절 (높을수록 날카로운 소리)
+                },
+                'Metal': {          # 메탈 (키보드 2)
+                    'r': 1.0,           # 거칠기 - 중간 정도의 표면 거칠기
+                    'f': 1.1,           # 주파수 계수 - 49.5Hz
+                    'type': 'metal',    # 파형 타입 - 메탈 특화 파형 사용
+                    'resonance': 1.8    # 메탈 특성 - 공명 강도 (높을수록 울림이 강함)
+                },
+                'Wood': {           # 나무 (키보드 3)
+                    'r': 0.8,           # 거칠기 - 적당한 표면 거칠기
+                    'f': 0.9,           # 주파수 계수 - 40.5Hz (낮은 주파수로 따뜻한 느낌)
+                    'type': 'wood',     # 파형 타입 - 나무 특화 파형 사용
+                    'warmth': 1.2       # 나무 특성 - 따뜻함 정도 (저주파 성분 강화)
+                },
+                'Plastic': {        # 플라스틱 (키보드 4)
+                    'r': 0.4,           # 거칠기 - 매끄러운 표면
+                    'f': 1.0,           # 주파수 계수 - 45Hz (기본값)
+                    'type': 'plastic',  # 파형 타입 - 플라스틱 특화 파형 사용
+                    'hardness': 1.1     # 플라스틱 특성 - 경도 (인공적 느낌 조절)
+                },
+                'Fabric': {         # 직물 (키보드 5)
+                    'r': 0.2,           # 거칠기 - 매우 부드러운 표면
+                    'f': 0.7,           # 주파수 계수 - 31.5Hz (낮은 주파수)
+                    'type': 'fabric',   # 파형 타입 - 직물 특화 파형 사용
+                    'softness': 1.5     # 직물 특성 - 부드러움 정도 (노이즈 성분 조절)
+                },
+                'Ceramic': {        # 세라믹 (키보드 6)
+                    'r': 0.6,           # 거칠기 - 중간 정도의 표면 거칠기
+                    'f': 1.2,           # 주파수 계수 - 54Hz
+                    'type': 'ceramic',  # 파형 타입 - 세라믹 특화 파형 사용
+                    'brittleness': 1.4  # 세라믹 특성 - 취성 정도 (깨지기 쉬운 재질감)
+                },
+                'Rubber': {         # 고무 (키보드 7)
+                    'r': 0.3,           # 거칠기 - 부드러운 표면
+                    'f': 0.8,           # 주파수 계수 - 36Hz (낮은 주파수)
+                    'type': 'rubber',   # 파형 타입 - 고무 특화 파형 사용
+                    'elasticity': 1.3   # 고무 특성 - 탄성 정도 (탄성적 변조 효과)
+                }
             }
         }
         
@@ -564,6 +723,11 @@ class TestWindow(QMainWindow):
             assert 'r' in mat_props and 'f' in mat_props, f"Material {mat_name} missing properties"
             assert mat_props['r'] > 0, f"Material {mat_name} roughness must be positive"
             assert mat_props['f'] > 0, f"Material {mat_name} frequency factor must be positive"
+            
+            # 재질 타입이 있는 경우 유효성 검증
+            if 'type' in mat_props:
+                valid_types = ['glass', 'metal', 'wood', 'plastic', 'fabric', 'ceramic', 'rubber']
+                assert mat_props['type'] in valid_types, f"Material {mat_name} has invalid type: {mat_props['type']}"
         
         print("Configuration validated successfully!")
 
