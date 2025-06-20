@@ -36,16 +36,16 @@ class DrivingSimulator:
             "use_render": True,
             "traffic_density": 0.1,
             "map": "OOOOOOOOOO",
-            "manual_control": False, # True로 해놓으면 meta drive에서 설정한 대로 동작함
+            "manual_control": False, # True로 해놓으면 meta drive 설정으로 동작함
             "start_seed": 42,
             "window_size": (1200, 800),
-            "horizon": 999999,
+            "horizon": 999999,   
             
             # First person view
             "prefer_track_agent": None,
             "camera_height": 1.2,
             "camera_dist": 0.8,
-            "camera_pitch": 0,
+            "camera_pitch": 0.8,
             "camera_smooth": False,
             "use_chase_camera_follow_lane": False,
             
