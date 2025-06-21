@@ -6,7 +6,8 @@ from player import HapticPlayModule
 
 class SpikeHapticPi:
     def __init__(self):
-        self.server_ip = "192.168.32.1" # 모든 인터페이스에서 접속
+        # self.server_ip = "192.168.32.1" # 모든 인터페이스에서 접속
+        self.server_ip = "0.0.0.0" # 모든 인터페이스에서 접속
         self.server_port = 5005
         self.bufsize:int = 65_536
         
@@ -26,9 +27,9 @@ class SpikeHapticPi:
         self.hatpicPlayer = HapticPlayModule()
 
         # 프로그램 시작시 기본 PCM 데이터 생성
-        snd_cfg = self.loaded_config["sound"]
-        self.sa_sound = self.hatpicPlayer.create_sound_object(snd_cfg['sa_hz'], snd_cfg['sa_ms'], snd_cfg['sa_amp'], fade_out_ms=10)
-        self.ra_sound = self.hatpicPlayer.create_sound_object(snd_cfg['ra_base_hz'] , snd_cfg['ra_ms'], snd_cfg['ra_base_amp'], fade_out_ms=10)     
+        self.sound_cache = {}
+        self.snd_cfg = self.loaded_config["sound"]
+        self.initSoundObject() 
         
     def callback_message(self):
         """스레드로 패킷을 받아서 JSON으로 파싱한 뒤 바로 출력"""
@@ -74,11 +75,22 @@ class SpikeHapticPi:
                 #     print(f"one-way latency ≈ {lat_ms:.3f} ms")
                 # except:
                 #     pass
+    def initSoundObject(self):
+        self.sa_sound = self.hatpicPlayer.create_sound_object(self.snd_cfg['sa_hz'], self.snd_cfg['sa_ms'], self.snd_cfg['sa_amp'], fade_out_ms=10)
+        
+        """RA 사운드 생성"""
+        baseMaterial = next(iter(self.loaded_config["materials"]), None) # 첫번째 재질 불러오기
+        baseValue = self.loaded_config["materials"][baseMaterial] # 첫번째 재질의 밸류
+        
+        ra_motion_hz = int(self.snd_cfg["ra_motion_base_hz"] * baseValue["f"])
+        ra_motion_cache_key = f"ra_motion_{baseMaterial}_{ra_motion_hz}"
+        material_params =  {k: v for k, v in baseValue.items() if k not in ('r', 'f', 'type')}
+        
 
     def load_config(self):
         """config 설정 파일을 로드"""
         file_path = "config.json"
-        
+         
         with open(file_path, "r", encoding="utf-8") as f:
             self.loaded_config = json.load(f)
 

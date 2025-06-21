@@ -196,6 +196,7 @@ class TestWindow(QMainWindow):
             neuron_dt_ms=self.config['neuron_dt_ms'],
             input_config=self.config['input_current']
         )
+        self.commModule = CommunicationModule() # 통신 인스턴스 생성
 
         self.materials = self.config['materials']
         self.mat_keys=list(self.materials.keys())
