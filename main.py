@@ -62,6 +62,7 @@ from izhikevich_neuron import IzhikevichNeuron  # 뉴런 시뮬레이션
 from audio_player import AudioPlayer              # 오디오 재생
 from haptic_renderer import HapticRenderer        # 사운드 생성
 from spike_encoder import SpikeEncoder            # 마우스→뉴런 변환
+from ClassCommunication import CommunicationModule # 통신 모듈
 
 class Constants:
     """애플리케이션 전역 상수 정의"""
