@@ -29,6 +29,9 @@ class SpikeHapticPi:
         # 프로그램 시작시 기본 PCM 데이터 생성
         self.sound_cache = {}
         self.snd_cfg = self.loaded_config["sound"]
+        self.sa_sound = None
+        self.ra_motion_snd = None
+        self.ra_click_snd = None
         self.initSoundObject() 
         
     def callback_message(self):
@@ -75,6 +78,7 @@ class SpikeHapticPi:
                 #     print(f"one-way latency ≈ {lat_ms:.3f} ms")
                 # except:
                 #     pass
+
     def initSoundObject(self):
         self.sa_sound = self.hatpicPlayer.create_sound_object(self.snd_cfg['sa_hz'], self.snd_cfg['sa_ms'], self.snd_cfg['sa_amp'], fade_out_ms=10)
         
@@ -82,15 +86,32 @@ class SpikeHapticPi:
         baseMaterial = next(iter(self.loaded_config["materials"]), None) # 첫번째 재질 불러오기
         baseValue = self.loaded_config["materials"][baseMaterial] # 첫번째 재질의 밸류
         
+        """RA 모션 사운드 객체"""
         ra_motion_hz = int(self.snd_cfg["ra_motion_base_hz"] * baseValue["f"])
         ra_motion_cache_key = f"ra_motion_{baseMaterial}_{ra_motion_hz}"
         material_params =  {k: v for k, v in baseValue.items() if k not in ('r', 'f', 'type')}
         
+        self.sound_cache[ra_motion_cache_key] = self.hatpicPlayer.create_material_sound(
+                    baseMaterial, ra_motion_hz, self.snd_cfg['ra_motion_ms'], self.snd_cfg['ra_motion_base_amp'], 
+                    fade_out_ms=10, **material_params)
+        
+        """RA 터치 사운드 객체"""
+        ra_click_hz = int(self.snd_cfg["ra_click_hz"] * baseValue["f"])
+        ra_click_cache_key = f"ra_click_{baseMaterial}_{ra_click_hz}"
+
+        click_amp = self.snd_cfg['ra_click_amp'] * 1.2
+        material_params =  {k: v for k, v in baseValue.items() if k not in ('r', 'f', 'type')}
+        self.sound_cache[ra_click_cache_key] = self.hatpicPlayer.create_material_sound(
+                    baseMaterial, ra_click_hz, self.snd_cfg['ra_click_ms'], click_amp, 
+                    fade_out_ms=5, **material_params)
+        
+        self.ra_motion_snd = self.sound_cache[f"ra_motion_{baseMaterial}_{int(self.snd_cfg['ra_motion_base_hz'] * baseValue["f"])}"]
+        self.ra_click_snd = self.sound_cache[f"ra_click_{baseMaterial}_{int(self.snd_cfg['ra_click_hz'] * baseValue["f"])}"]
 
     def load_config(self):
         """config 설정 파일을 로드"""
         file_path = "config.json"
-         
+       
         with open(file_path, "r", encoding="utf-8") as f:
             self.loaded_config = json.load(f)
 
